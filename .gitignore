@@ -1,0 +1,31 @@
+# Restricted study inputs, model weights, and individual-level outputs
+data/
+inputs/
+outputs/
+results/
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.pkl
+*.pickle
+*.rds
+*.RData
+*.parquet
+*.pth
+*.pt
+*.zip
+
+# Environment and local files
+.env
+.env.*
+*.key
+*.pem
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.Rhistory
+.Rproj.user/
+.DS_Store
+.venv/
+venv/
