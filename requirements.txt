@@ -1,0 +1,11 @@
+# Representative packages used in archived Python research.
+# Do not assume these unpinned versions reproduce historical model results.
+numpy
+pandas
+scipy
+scikit-learn
+torch
+torchmetrics
+matplotlib
+seaborn
+jupyter
