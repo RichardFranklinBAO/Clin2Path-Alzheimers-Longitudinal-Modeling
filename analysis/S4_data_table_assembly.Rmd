@@ -1,0 +1,297 @@
+---
+title: "Impute Longitudinal Pathologies"
+author: "Qile Dai"
+date: "2024-01-31"
+output: 
+  html_document:
+    number_sections: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(conflicted)
+library(reshape2)
+library(lattice)
+library(readxl)
+library(ROCR);
+library(plotROC)
+library(pROC)
+library(lme4)
+library(glmnet)
+library(caret)
+library(e1071)
+library(party)
+library(gbm)
+options(stringsAsFactors = FALSE)
+conflict_prefer("mutate", "dplyr")
+filter <- dplyr::filter
+lag <- dplyr::lag
+
+library(here)
+here::i_am("Impute_Path_Packed_Original.Rmd") # change the path to the current file
+
+source(here("RawData", "Rfunc_yang.r"))
+source(here("RawData", "utility_funcs_yang.r"))
+
+theme_set(theme(
+  text = element_text(size = 12, family = "Arial",face="bold"), # Base text size and font for the plot
+  plot.title = element_text(size = 24, face = "bold"), # Size and style for the plot title
+  axis.title.x = element_text(size = 24, face = "bold"), # Size and style for the x-axis title
+  axis.title.y = element_text(size = 24, face = "bold"), # Size and style for the y-axis title
+  legend.text = element_text(size = 12), # Size for the legend text
+  legend.title = element_text(size = 14, face = "bold") # Size and style for the legend title
+))
+```
+
+# Load Data
+
+## Selected Clinical Features
+
+```{r}
+clinic_var_list = c("age_at_visit",  "bmi", "cogn_global", "cts_mmse30",  
+                    "dbp_avg", "sbp_avg", "phys5itemsum",        
+                    "cesdsum",              "soc_net",              "hypertension_cum",     "cancer_cum",          
+                    "dm_cum",               "headinjrloc_cum",      "thyroid_cum",          "claudication_cum",    
+                    "heart_cum",            "stroke_cum",           "vasc_risks_sum",       "mental_health_rx",    
+                    "analgesic_rx",         "antibiotic_rx" ,       "antihyp_all_rx",       "cardiac_rx",          
+                    "antianxiety_rx",       "anti_inflammatory_rx", "aspirin_rx",           "lipid_lowering_rx",   
+                    "insomnia_rx",          "diabetes_rx",          "educ",                 "msex",                
+                    "mateduc" ,             "pateduc",              "extraversion_6",       "anxiety_10items",     
+                    "early_hh_ses" ,        "neuroticism_12",       "angertrait",           "alcohol_g_bl",        
+                    "ldai_bl" ,             "smoking",              "apoe_E2",              "apoe_E4",             
+                    "TOMM40_S",             "TOMM40_L",             "TOMM40_VL",            
+                    "motor_dexterity",      "motor_gait",           "motor_handstreng",
+                    "bradysc",              "gaitsc",               "rigidsc",
+                    "tremsc",   "q1slp",  "q2slp", "q4slp", "q5slp")
+
+length(clinic_var_list)
+```
+
+## Longitudinal Data
+
+### Load longitudinal data
+```{r}
+long_741 <- readxl::read_xlsx(here("RawData", "dataset_741_long_06-07-2022.xlsx"))
+long_742 <- readxl::read_xlsx(here("RawData", "dataset_742_long_06-07-2022.xlsx"))
+long_1057<-readxl::read_xlsx(here("RawData", "dataset_1057_long_07-11-2022.xlsx"))
+dataset_long <- full_join(long_741,long_742,long_1057,by=c("projid","fu_year","study")) 
+
+# Fill in missing values
+dataset_long <- dataset_long %>% 
+  group_by(projid) %>%
+  fill(colnames(dataset_long), .direction = "downup")
+dim(dataset_long) #31058 214
+```
+
+### Load motor data
+
+```{r}
+# raw motor data: fill up the missing value
+motor_data<-readxl::read_xlsx(here("RawData", "motor_1057_long_07-11-2022.xlsx"))
+motor_data <- motor_data %>% 
+  arrange(projid, fu_year) %>% 
+  group_by(projid) %>%
+  fill(gait_speed, motor10, motor_dexterity, 
+       motor_gait, motor_handstreng, bradysc, 
+       gaitsc, parksc, rigidsc, tremsc, .direction = "downup")
+dim(motor_data) # 31135 14
+```
+
+### Load sleep data
+```{r}
+sleep_data<-readxl::read_xlsx(here("RawData", "Sleep Variables 07-2022.xlsx"))
+sleep_data <- sleep_data %>% 
+  mutate(fu_year = as.numeric(visit)) %>% 
+  arrange(projid, fu_year) %>% 
+  group_by(projid) %>%
+  fill(q1slp, q2slp, q4slp, q5slp, .direction = "downup")
+dim(sleep_data) 
+```
+
+### Merge all types of data
+```{r}
+dataset_long_with_motor <- inner_join(dataset_long, 
+                                      motor_data, 
+                                      by = c("projid", "fu_year", "study"))
+dim(dataset_long_with_motor) #31058 225
+
+dataset_long_with_motor_sleep <- inner_join(dataset_long_with_motor, 
+                                            sleep_data, 
+                                            by = c("projid", "fu_year"))
+
+dim(dataset_long_with_motor_sleep) # 29309   230
+```
+
+## Cross-sectional Data
+
+### Load data
+```{r}
+basic_741 <- readxl::read_xlsx(here("RawData",
+                                    "dataset_741_basic_06-07-2022.xlsx"))
+basic_742 <- readxl::read_xlsx(here("RawData", 
+                                    "dataset_742_basic_06-07-2022.xlsx"))
+dataset_basic <- full_join(basic_741,basic_742,by=c("projid","study")) #3724,138
+dim(dataset_basic)
+```
+
+### Processing cross-sectional data
+```{r}
+dataset_basic <- dataset_basic %>% 
+  mutate(brainwt = as.numeric(brainwt),
+         apoe_E2 = case_when(apoe_genotype == 22 ~ 2,
+                             apoe_genotype == 23 | apoe_genotype == 24 ~ 1,
+                             TRUE ~ 0),
+                  apoe_E4 = case_when(apoe_genotype == 44 ~ 2,
+                             apoe_genotype == 34 | apoe_genotype == 24 ~ 1,
+                             TRUE ~ 0),
+         TOMM40_S = case_when(tomm40_hap == 1 ~ 2,
+                              tomm40_hap == 2 | tomm40_hap == 3 ~ 1,
+                              TRUE ~ 0),
+         TOMM40_L = case_when(tomm40_hap == 4 ~ 2,
+                              tomm40_hap == 2 | tomm40_hap == 5 ~ 1,
+                              TRUE ~ 0),
+         TOMM40_VL = case_when(tomm40_hap == 6 ~ 2,
+                              tomm40_hap == 3 | tomm40_hap == 5 ~ 1,
+                              TRUE ~ 0))
+```
+
+```{r}
+write.csv(dataset_basic, "dataset_basic.csv", row.names = FALSE)
+```
+
+```{r}
+dim(dataset_basic)
+dataset_basic = dataset_basic %>%
+  mutate(gpath = sqrt(gpath),
+         tangles = sqrt(tangles),
+         amyloid = sqrt(amyloid),
+         niareagansc = as.numeric(niareagansc))
+dim(dataset_basic)
+```
+
+
+
+## Merge longitudinal data and cross-sectional data for all subjects (Deleting the following sentence: with all 5 brain pathology measurements)
+
+```{r}
+dataset_merged <- merge(dataset_basic, dataset_long_with_motor_sleep,
+                        by = c("projid", "study"),
+                        sort = FALSE) %>% 
+  select(projid, study, fu_year, cogdx, 
+         eval(clinic_var_list)) %>% 
+  arrange(projid, fu_year)
+
+length(unique(dataset_merged$projid))
+dim(dataset_merged) # 61 = 57 + 4 (projid, study, fu_year, cogdx)
+write.csv(dataset_merged, "dataset_merged_0825.csv", row.names = FALSE)
+```
+
+The archived dataset summary recorded 13,014 longitudinal records for 1,562 participants. One participant had pathology measurements but no corresponding longitudinal records; their individual identifier is intentionally omitted.
+
+### Check missing data (after filling in using data from the closest visit)
+
+```{r}
+miss_df = data.frame(n.missing = colSums(is.na(dataset_merged))) %>% 
+  arrange(desc(n.missing)) %>% 
+  filter(n.missing > 0)
+
+pander::pander(miss_df)
+```
+
+### Fill missing yearly visits for each participant, then keep only cases with complete clinic_var_list values. This order ensures that there are both decedents and living participants. If the order is changed, there will be only decedents.
+
+```{r}
+fill_visits_by_years = function(id){
+  
+  temp_dat = dataset_merged %>% filter(projid == id)
+  
+  max_visit = max(temp_dat$fu_year)
+  
+  all_visit = data.frame(projid = id, fu_year = 0:max_visit)
+  all_visit  = merge(all_visit, temp_dat, by = c("projid", "fu_year"),
+                     all.x = T)
+  
+  # Fill in missing visits
+  all_visit <- all_visit %>% 
+    group_by(projid) %>%
+    fill(colnames(all_visit), .direction = "downup")
+
+  return(all_visit)
+}
+```
+
+```{r}
+subject_id = unique(dataset_merged$projid)
+filled_year_dat = NULL
+
+for (i in 1:length(subject_id)){
+
+  filled_year_dat = rbind(filled_year_dat, fill_visits_by_years(subject_id[i]))
+  
+}
+
+colnames(filled_year_dat) = colnames(fill_visits_by_years(subject_id[1]))
+filled_year_dat = filled_year_dat %>% 
+  arrange(projid, fu_year)
+
+dim(filled_year_dat) # 61 = 57 + 4 (projid, study, fu_year, cogdx)
+``` 
+
+```{r}
+# nocomp.id = filled_year_dat$projid[!complete.cases(filled_year_dat)] %>% unique(.)
+
+# Checking only consider the complete row of clinic_var_list
+nocomp.id <- filled_year_dat$projid[!complete.cases(filled_year_dat[ , clinic_var_list])] %>% unique()
+
+full_dataset_merged = filled_year_dat %>% 
+  filter(!projid %in% nocomp.id) %>% 
+  arrange(projid)
+
+dim(full_dataset_merged)
+
+full_samples = unique(full_dataset_merged[, c('projid', 'study')])
+dataset_merged_unique_id = unique(dataset_merged[, c('projid', 'study')])
+
+table(full_samples$study)
+table(dataset_merged_unique_id$study) # Used to check what if we do not choose the full_samples case.
+```
+
+
+
+
+
+## Adding conditions for choosing the correct projid
+condition 1: At least two visits -> max_fu_year > 1 (Need to create the max_fu_year)
+condition 2: No ADD at the first 2 visits (Need to add teh ADD value for each projid)
+
+After consideration, this version is enough and I will adding these two conditions when I need them to plot. (Added on 0625V4S5_PADPPlottingwithADDas0&ModifiedNIAValue.Rmd)
+
+### Creating dataset of the pathologies
+```{r}
+pathology_dat = dataset_basic %>% 
+  filter(projid %in% full_dataset_merged$projid) %>% 
+  select(projid, study, gpath, tangles, amyloid, niareagansc) %>% 
+  arrange(projid)
+
+dim(pathology_dat) # projid, study, gpath, tangles, amyloid, niareagansc # Previously 1214 6
+dim(full_dataset_merged)
+```
+
+```{r}
+out.dir = here('Processed_Data')
+
+if (dir.exists(out.dir) == F){
+  dir.create(out.dir)
+}
+
+write.table(full_dataset_merged,
+           file(here('Processed_Data', 'full_filled_year_dat_0725.txt')),
+           sep = '\t',
+           quote = F)
+
+write.table(pathology_dat,
+           file(here('Processed_Data', 'pathology_dat_0725.txt')),
+           sep = '\t',
+           quote = F)
+```

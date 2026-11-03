@@ -1,0 +1,96 @@
+---
+title: "CheckingNIA"
+author: "Conglin BAO"
+date: "2025-04-05"
+output: html_document
+---
+
+
+# setup environment;
+```{r}
+getwd()
+library(tidyverse)
+library(conflicted)
+library(reshape2)
+library(lattice)
+library(readxl)
+library(ROCR);
+library(plotROC)
+library(pROC)
+library(lme4)
+library(glmnet)
+library(caret)
+library(e1071)
+#library(party)
+library(gbm)
+library(ggpubr)
+library(glue)
+library(dplyr)
+options(stringsAsFactors = FALSE)
+filter <- dplyr::filter
+lag <- dplyr::lag
+
+theme_set(theme(
+  plot.caption = element_text(hjust = 0.5),
+  legend.position="bottom",
+  text = element_text(size = 28,face="bold"), # Base text size and font for the plot
+  plot.title = element_text(size = 34, face = "bold"), # Size and style for the plot title
+  axis.title.x = element_text(size = 44, face = "bold"), # Size and style for the x-axis title
+  axis.title.y = element_text(size = 44, face = "bold",angle=90), # Size and style for the y-axis title
+  axis.text.x = element_text(size = 28, face = "bold"), # Size and style for the x-axis title
+  axis.text.y = element_text(size = 28, face = "bold",angle=90),
+  legend.text = element_text(size = 30), # Size for the legend text
+  legend.title = element_text(size = 36, face = "bold"),
+  strip.text = element_text(
+    size = 36, color = "black")# Size and style for the legend title
+))
+```
+
+# Preparing Data
+
+```{r}
+Original_Pathology <- read.delim("pathology_dat_0725.txt", header = TRUE, sep = "\t")# %>%
+```
+
+
+```{r}
+NIAinfo1 <- Original_Pathology %>%
+  count(niareagansc)
+
+print(NIAinfo1)
+```
+
+# Modifying the NIA value ensuring that 
+# no ad is 1 rather than the previous 4, 
+# low is 2 rather than the previous 3,
+# intermediate is 3 rather than the previous 2,
+# high is 4 rather than the previous 1.
+```{r}
+ModifiedNIA_pathologies <- Original_Pathology %>%
+  mutate(niareagansc = case_when(
+    niareagansc == 4 ~ 1,
+    niareagansc == 3 ~ 2,
+    niareagansc == 2 ~ 3,
+    niareagansc == 1 ~ 4,
+    TRUE    ~ niareagansc  
+  ))
+```
+
+```{r}
+NIAinfo2 <- ModifiedNIA_pathologies %>%
+  count(niareagansc)
+
+print(NIAinfo2)
+```
+
+# Write out the updated dataset.
+```{r}
+write.table(ModifiedNIA_pathologies, 
+            file = "pathology_dat_with_modifiedNIA_0725.txt", 
+            sep = "\t",           
+            row.names = FALSE,   
+            quote = FALSE)       
+```
+
+
+

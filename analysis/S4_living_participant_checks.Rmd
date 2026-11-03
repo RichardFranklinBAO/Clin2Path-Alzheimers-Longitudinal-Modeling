@@ -1,0 +1,130 @@
+---
+title: "Checking_data"
+author: "Conglin BAO"
+date: "2025-10-29"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(here)
+library(dplyr) 
+library(conflicted)
+library(glue)
+library(tidyr)
+conflicted::conflicts_prefer(dplyr::filter)
+conflicted::conflicts_prefer(dplyr::lag)  # 若也用到了 lag
+here::i_am('Checking_data_and_generating_all_livings_participants_v2.Rmd')
+```
+
+# S1: Checking the number of unique projids of decedents.
+```{r}
+DFFromS1 <- read.csv(here::here('inputs', 'NIAvalueUpdatedVersion_scaled_whole_decedents_dataset.csv'))
+```
+
+```{r}
+cols <- c("gpath","tangles","amyloid","niareagansc")
+
+DFFromS1 <- DFFromS1 %>%
+  mutate(
+    # 至少一个有值(非NA且有限) → 逝者=0；全都没值 → 生者=1
+    living_status = if_else(
+      if_any(all_of(cols), ~ !is.na(.) & is.finite(.)),
+      0L, 1L
+    )
+  )
+
+cat(glue("The length of unique projid of DFFromS1 is {length(unique(DFFromS1$projid))} with the number of records of decedents / total number of records = {length(DFFromS1$living_status)}/{nrow(DFFromS1)}.\n")) 
+
+
+```
+
+```{r}
+DT_filled1 <- DFFromS1 %>%
+  arrange(projid, fu_year) %>%
+  group_by(projid) %>%
+  fill(all_of(cols), .direction = "downup") %>%
+  ungroup()
+
+complete4_1 <- DT_filled1 %>%
+  filter(
+    if_all(
+      all_of(cols),
+      ~ !is.na(.) & (!is.numeric(.) | is.finite(.))
+    )
+  )
+
+cat(glue(
+  "共有 {nrow(complete4_1)} 行同时拥有四个病理值；",
+  "对应的 unique projid 数量为 {n_distinct(complete4_1$projid)}。\n"
+))
+```
+
+
+
+```{r}
+df1 <- read_csv(here::here('inputs', 'scaled_test_with_modifiedNIA_0725.csv'))
+df2 <- read_csv(here::here('inputs', 'scaled_train_with_modifiedNIA_0725.csv'))
+DFFromS2 <- bind_rows(df1, df2)
+DFFromS2 <- DFFromS2 %>%
+  mutate(
+    # 至少一个有值(非NA且有限) → 逝者=0；全都没值 → 生者=1
+    living_status = if_else(
+      if_any(all_of(cols), ~ !is.na(.) & is.finite(.)),
+      0L, 1L
+    )
+  )
+DFFromS2 %>%
+  group_by(living_status) %>%
+  summarise(
+    n_rows = n(),
+    n_unique_projid = n_distinct(projid),
+    .groups = "drop"
+  )
+```
+
+```{r}
+DT_filled2 <- DFFromS2 %>%
+  arrange(projid, fu_year) %>%
+  group_by(projid) %>%
+  fill(all_of(cols), .direction = "downup") %>%
+  ungroup()
+
+complete4_2 <- DT_filled2 %>%
+  filter(
+    if_all(
+      all_of(cols),
+      ~ !is.na(.) & (!is.numeric(.) | is.finite(.))
+    )
+  )
+
+cat(glue(
+  "共有 {nrow(complete4_2)} 行同时拥有四个病理值；",
+  "对应的 unique projid 数量为 {n_distinct(complete4_2$projid)}。\n"
+))
+```
+
+```{r}
+library(dplyr)
+library(glue)
+
+ids1 <- unique(complete4_1$projid)
+ids2 <- unique(complete4_2$projid)
+
+incl <- all(ids1 %in% ids2)
+missing_ids <- setdiff(ids2, ids1)
+
+cat(glue(
+         "complete4_1 的 unique projid 数: {length(ids1)}\n",
+         "complete4_2 的 unique projid 数: {length(ids2)}\n",
+         "complete4_2是否全部包含complete4_1？ {incl}\n",
+         "complete4_2 中未出现在 complete4_1 的 projid 数: {length(missing_ids)}\n"))
+
+# 如需查看具体缺失的 ID（前几十个）
+head(missing_ids, 50)
+
+# 或者用 dplyr 看缺失行
+anti_rows <- complete4_1 %>% anti_join(complete4_2, by = "projid")
+nrow(anti_rows)
+```
+
