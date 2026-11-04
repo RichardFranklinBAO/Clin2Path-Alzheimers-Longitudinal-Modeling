@@ -275,8 +275,8 @@ class LSTMModel(nn.Module):
     def forward(self, x):
         _, (hidden, _) = self.lstm(x)
         if self.bidirectional:
-            forward_hidden = hidden[-2]  # 最后一层正向隐藏状态
-            backward_hidden = hidden[-1]  # 最后一层反向隐藏状态
+            forward_hidden = hidden[-2]  # Final-layer forward hidden state
+            backward_hidden = hidden[-1]  # Final-layer backward hidden state
             out = torch.cat((forward_hidden, backward_hidden), dim=1)
         else:
             out = hidden[-1]
@@ -319,7 +319,7 @@ def train_and_evaluate_model(
     train_data, test_data, input_dim, output_dim, hidden_size, num_layers, learning_rate, batch_size,
     num_epochs=100, patience=10, lr_scheduler_patience=5, lr_factor=0.5, test_size=0.2, random_state=42,
     seed=1217, model_save_path="best_model.pth", temporary=False,
-    weight_decay=1e-5, dropout_rate=0.5, bidirectional=True  # 新增bidirectional参数
+    weight_decay=1e-5, dropout_rate=0.5, bidirectional=True  # Add the bidirectional parameter
     ):
     """
     Function for training and evaluating a model with optional temporary saving of the best model.

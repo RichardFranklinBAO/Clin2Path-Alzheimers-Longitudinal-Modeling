@@ -33,7 +33,7 @@ library(data.table)
 options(stringsAsFactors = FALSE)
 filter <- dplyr::filter
 lag <- dplyr::lag
-# install.packages("fs")  # 若未安装
+# install.packages("fs")  # If not installed
 library(fs)
 library(here)
 here::i_am('0625V4S5_PADPPlottingwithADDas0&ModifiedNIAValue.Rmd')
@@ -41,8 +41,8 @@ dir_create(here("outputs", "S5"))
 dir_create(here("outputs", "S6"))
 
 
-TITLE_SIZE     <- 38  # ===== 改这一个数字控制所有 title/label 大小 =====
-AXIS_TEXT_SIZE <- 28  # ===== 改这一个数字控制坐标轴数字大小 =====
+TITLE_SIZE     <- 38  # ===== Change this value to control all title/label sizes =====
+AXIS_TEXT_SIZE <- 28  # ===== Change this value to control tick-label sizes =====
 
 theme_set(theme(
   plot.caption = element_text(hjust = 0.5),

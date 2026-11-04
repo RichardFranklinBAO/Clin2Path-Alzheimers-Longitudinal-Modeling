@@ -71,7 +71,7 @@ library("ggVennDiagram")
 library(glue) 
 library(purrr) 
 library(magick)
-# install.packages("fs")  # 若未安装
+# install.packages("fs")  # If not installed
 library(fs)
 library(here)
 here::i_am('0625V4S6_CleanedVersio_V2.Rmd')
@@ -351,7 +351,7 @@ return(cluster_df)
 my_viz_cluster=function(kmeans_df,center,title=""){
 for (i in (2:center)){
   k = kmeans(kmeans_df,centers=i,nstart=25) 
-  p <- fviz_cluster(k, geom = "text", data = kmeans_df) + ggtitle(paste0("k = ",i,title)) # geom = "text" 啥意思？
+  p <- fviz_cluster(k, geom = "text", data = kmeans_df) + ggtitle(paste0("k = ",i,title)) # geom = "text" What does this mean?
   print(p)
 }
 }
@@ -555,7 +555,7 @@ dim(total_trend_plot_living)
 # Checking information
 library(dplyr)
 
-# Decedents 样本中，每个 condition 下的 unique projid 数
+# Number of unique projid values by condition in the decedent sample
 decedents_counts <- total_trend_plot_decedents %>%
   group_by(condition) %>%
   summarise(n_unique_projids = n_distinct(projid)) %>%
@@ -904,7 +904,7 @@ global_limits_cut_living
 my_mcinci_fixed_y <- function(df, file, cluster_label, varname,
                               global_limits_complete, global_limits_cut,
                               dx = c("ADD","MCI","NCI")) {
-  dx <- match.arg(dx)  # 只允许 ADD / MCI / NCI
+  dx <- match.arg(dx)  # Only ADD / MCI / NCI allowed
 
   if (!dir.exists(file)) dir.create(file, recursive = TRUE)
 
@@ -1162,7 +1162,7 @@ compose_dx_grid_generic <- function(
   dx = c("ADD","MCI","NCI"),
   strict_three_cols = TRUE,
   swap_rc = FALSE,          # NEW: FALSE = 4 rows (pathology) × 3 cols (cluster); TRUE = 3 rows (cluster) × 4 cols (pathology)
-  base_dir_root = "outputs/S6/ClusteringPlots"  # 新增：图像根目录
+  base_dir_root = "outputs/S6/ClusteringPlots"  # New: root directory for images
 ) {
   who     <- match.arg(who)
   version <- match.arg(version)
@@ -1186,7 +1186,7 @@ compose_dx_grid_generic <- function(
   vline    <- image_blank(width = 2, height = h_single, color = "black")
 
   if (!swap_rc) {
-    # --- 原布局：每一行 = 一个 pathology，行内横排 3 个 cluster ---
+    # --- Original layout: each row is a pathology, with three clusters across columns ---
     n_expected <- if (strict_three_cols) length(cluster_order) else NULL
     row_imgs <- lapply(vars, function(v) {
       imgs <- lapply(cluster_order, function(cl) {
@@ -1196,8 +1196,8 @@ compose_dx_grid_generic <- function(
       append_with_vlines_generic(imgs, vline, n_expected = n_expected)
     })
   } else {
-    # --- 对调后布局：每一行 = 一个 cluster，行内横排 4 个 pathology ---
-    n_expected <- length(vars)  # 固定 4 列
+    # --- Revised layout: each row is a cluster, with four pathologies across columns ---
+    n_expected <- length(vars)  # Always use four columns
     row_imgs <- lapply(cluster_order, function(cl) {
       imgs <- lapply(vars, function(v) {
         paths <- build_candidate_paths(base_dir, cl, v, dx)

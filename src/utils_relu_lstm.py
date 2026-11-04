@@ -273,19 +273,19 @@ class LSTMModel(nn.Module):
         
         # Adjust BatchNorm and FC input dimensions based on bidirectionality
         self.batch_norm = nn.BatchNorm1d(hidden_dim * self.num_directions)
-        self.relu = nn.ReLU()  # 额外的 ReLU 激活层
+        self.relu = nn.ReLU()  # Additional ReLU activation layer
         self.fc = nn.Linear(hidden_dim * self.num_directions, output_dim)
 
     def forward(self, x):
         _, (hidden, _) = self.lstm(x)
         if self.bidirectional:
-            forward_hidden = hidden[-2]  # 正向隐藏状态
-            backward_hidden = hidden[-1]  # 反向隐藏状态
+            forward_hidden = hidden[-2]  # Forward hidden state
+            backward_hidden = hidden[-1]  # Backward hidden state
             out = torch.cat((forward_hidden, backward_hidden), dim=1)
         else:
             out = hidden[-1]
         out = self.batch_norm(out)
-        out = self.relu(out)  # 应用 ReLU 激活
+        out = self.relu(out)  # Apply the ReLU activation
         out = self.fc(out)
         return out
 

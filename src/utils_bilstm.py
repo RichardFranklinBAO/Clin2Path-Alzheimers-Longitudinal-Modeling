@@ -286,7 +286,7 @@ class LSTMModel(nn.Module):
     def forward(self, x):
         # LSTM returns: (output, (hidden, cell))
         _, (hidden, _) = self.lstm(x)  
-        # 如果是多层双向 LSTM，最后一层的正向隐藏状态在 hidden[-2]，反向隐藏状态在 hidden[-1]
+        # For a multilayer bidirectional LSTM, the final-layer forward and backward states are hidden[-2] and hidden[-1]
         if self.bidirectional:
             forward_hidden = hidden[-2]  # shape: (batch_size, hidden_dim)
             backward_hidden = hidden[-1]  # shape: (batch_size, hidden_dim)
