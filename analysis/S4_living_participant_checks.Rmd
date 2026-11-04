@@ -13,7 +13,7 @@ library(conflicted)
 library(glue)
 library(tidyr)
 conflicted::conflicts_prefer(dplyr::filter)
-conflicted::conflicts_prefer(dplyr::lag)  # 若也用到了 lag
+conflicted::conflicts_prefer(dplyr::lag)  # If lag is also used
 here::i_am('Checking_data_and_generating_all_livings_participants_v2.Rmd')
 ```
 
@@ -27,7 +27,7 @@ cols <- c("gpath","tangles","amyloid","niareagansc")
 
 DFFromS1 <- DFFromS1 %>%
   mutate(
-    # 至少一个有值(非NA且有限) → 逝者=0；全都没值 → 生者=1
+    # At least one finite non-NA pathology value: decedent = 0; otherwise living = 1
     living_status = if_else(
       if_any(all_of(cols), ~ !is.na(.) & is.finite(.)),
       0L, 1L
@@ -55,8 +55,8 @@ complete4_1 <- DT_filled1 %>%
   )
 
 cat(glue(
-  "共有 {nrow(complete4_1)} 行同时拥有四个病理值；",
-  "对应的 unique projid 数量为 {n_distinct(complete4_1$projid)}。\n"
+  "There are {nrow(complete4_1)} rows containing all four pathology values;",
+  "Number of unique projid values: {n_distinct(complete4_1$projid)}\n"
 ))
 ```
 
@@ -68,7 +68,7 @@ df2 <- read_csv(here::here('inputs', 'scaled_train_with_modifiedNIA_0725.csv'))
 DFFromS2 <- bind_rows(df1, df2)
 DFFromS2 <- DFFromS2 %>%
   mutate(
-    # 至少一个有值(非NA且有限) → 逝者=0；全都没值 → 生者=1
+    # At least one finite non-NA pathology value: decedent = 0; otherwise living = 1
     living_status = if_else(
       if_any(all_of(cols), ~ !is.na(.) & is.finite(.)),
       0L, 1L
@@ -99,8 +99,8 @@ complete4_2 <- DT_filled2 %>%
   )
 
 cat(glue(
-  "共有 {nrow(complete4_2)} 行同时拥有四个病理值；",
-  "对应的 unique projid 数量为 {n_distinct(complete4_2$projid)}。\n"
+  "There are {nrow(complete4_2)} rows containing all four pathology values;",
+  "Number of unique projid values: {n_distinct(complete4_2$projid)}\n"
 ))
 ```
 
@@ -115,15 +115,15 @@ incl <- all(ids1 %in% ids2)
 missing_ids <- setdiff(ids2, ids1)
 
 cat(glue(
-         "complete4_1 的 unique projid 数: {length(ids1)}\n",
-         "complete4_2 的 unique projid 数: {length(ids2)}\n",
-         "complete4_2是否全部包含complete4_1？ {incl}\n",
-         "complete4_2 中未出现在 complete4_1 的 projid 数: {length(missing_ids)}\n"))
+         "Unique projid count for complete4_1: {length(ids1)}\n",
+         "Unique projid count for complete4_2: {length(ids2)}\n",
+         "Does complete4_2 include all IDs in complete4_1? {incl}\n",
+         "Number of IDs in complete4_2 absent from complete4_1: {length(missing_ids)}\n"))
 
-# 如需查看具体缺失的 ID（前几十个）
+# To inspect missing IDs (first several dozen)
 head(missing_ids, 50)
 
-# 或者用 dplyr 看缺失行
+# Alternatively inspect missing rows with dplyr
 anti_rows <- complete4_1 %>% anti_join(complete4_2, by = "projid")
 nrow(anti_rows)
 ```
