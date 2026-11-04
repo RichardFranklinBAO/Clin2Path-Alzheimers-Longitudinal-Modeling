@@ -13,15 +13,15 @@ library(dplyr)
 library(purrr)
 library(stringr)
 
-# 项目根定位（可选，保持和你截图里一样的结构）
+# Locate the project root (optional, following the existing directory structure)
 here::i_am("Combining_clean_imputed_dataset_for_all_decedentstled.Rmd")
 ```
 
 ```{r}
 
-# 一个小工具函数：给定模型目录与要抽取的预测列，返回精简过的 df
+# Helper: given a model directory and prediction columns, return a reduced data frame
 read_pred_csv <- function(model_dir, pred_col) {
-  # 该模型下 results/ 里含 "clean" 的 csv
+  # CSV files containing "clean" in this model's results/ directory
   files <- list.files(
     path = file.path(model_dir, "results"),
     pattern = "clean.*\\.csv$",
@@ -36,14 +36,14 @@ read_pred_csv <- function(model_dir, pred_col) {
 
   df <- readr::read_csv(files[1], show_col_types = FALSE)
 
-  # 只保留 projid, fu_year, 目标预测列
+  # Keep only projid, fu_year and target prediction columns
   if (!pred_col %in% names(df)) {
     stop(glue::glue("Column '{pred_col}' not found in {basename(files[1])}"))
   }
 
   df %>%
     dplyr::select(projid, fu_year, !!pred_col) %>%
-    # 统一类型，避免 join 时出问题
+    # Standardize column types to prevent join errors
     dplyr::mutate(
       projid = suppressWarnings(as.integer(projid)),
       fu_year = suppressWarnings(as.numeric(fu_year))
@@ -54,7 +54,7 @@ read_pred_csv <- function(model_dir, pred_col) {
 
 ```{r}
 
-# 各模型目录与相应要抽取的列名 —— 按你的命名规则：
+# Model directories and target prediction columns, following the existing naming convention:
 # BiLSTM_amyloid -> pred_amyloid
 # BiLSTM_nia     -> pred_niareagansc
 # LSTM_tangles   -> pred_tangles
@@ -64,7 +64,7 @@ model_map <- tibble::tibble(
   pred = c("pred_amyloid",  "pred_niareagansc", "pred_tangles", "pred_gpath")
 )
 
-# 读取四张表并合并
+# Read and merge the four tables
 pred_list <- purrr::pmap(model_map, ~ read_pred_csv(..1, ..2))
 
 combined <- Reduce(
@@ -73,10 +73,10 @@ combined <- Reduce(
 ) %>%
   dplyr::arrange(projid, fu_year)
 
-# 看一眼结果
+# Inspect the result
 print(dplyr::glimpse(combined))
 
-# 保存
+# Save
 out_path <- here::here("combined_clean_preds_only_for_decedents.csv")
 readr::write_csv(combined, out_path)
 message(glue::glue("Saved combined predictions to: {out_path}"))
